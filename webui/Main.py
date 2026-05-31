@@ -1,6 +1,7 @@
 import os
 import sys
 import webbrowser
+from html import escape
 from uuid import UUID, uuid4
 
 import streamlit as st
@@ -46,6 +47,110 @@ streamlit_style = """
 h1 {
     padding-top: 0 !important;
 }
+.creative-editor-shell {
+    margin-bottom: 0.75rem;
+}
+.editor-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    min-height: 5.25rem;
+    border: 1px solid rgba(49, 51, 63, 0.12);
+    border-radius: 8px;
+    background: linear-gradient(135deg, #101827 0%, #172033 100%);
+    color: #ffffff;
+}
+.editor-brand-title {
+    font-size: 1.45rem;
+    line-height: 1.2;
+    font-weight: 750;
+}
+.editor-brand-subtitle {
+    margin-top: 0.25rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.88rem;
+}
+.editor-main-card,
+.preview-card,
+.config-stack,
+.generate-action-card {
+    border-radius: 8px;
+}
+.editor-section-title {
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.35rem;
+}
+.editor-section-caption {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin-bottom: 0.9rem;
+}
+.preview-card {
+    border: 1px solid rgba(49, 51, 63, 0.12);
+    background: #ffffff;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+.preview-phone {
+    width: min(100%, 210px);
+    aspect-ratio: 9 / 16;
+    margin: 0 auto 1rem;
+    border-radius: 24px;
+    padding: 0.75rem;
+    background: #111827;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.20);
+}
+.preview-landscape {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 auto 1rem;
+    border-radius: 14px;
+    padding: 0.55rem;
+    background: #111827;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+}
+.preview-screen {
+    height: 100%;
+    border-radius: inherit;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 25% 20%, rgba(255,255,255,0.32), transparent 24%),
+        linear-gradient(150deg, #14b8a6 0%, #3b82f6 48%, #111827 100%);
+}
+.preview-caption {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 13%;
+    height: 12%;
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.72);
+}
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+.summary-item {
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 0.65rem;
+}
+.summary-label {
+    color: #64748b;
+    font-size: 0.75rem;
+}
+.summary-value {
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.92rem;
+    margin-top: 0.15rem;
+}
 </style>
 """
 st.markdown(streamlit_style, unsafe_allow_html=True)
@@ -80,10 +185,21 @@ if "local_video_materials" not in st.session_state:
 locales = utils.load_locales(i18n_dir)
 
 # 创建一个顶部栏，包含标题和语言选择
-title_col, lang_col = st.columns([3, 1])
+st.markdown('<div class="creative-editor-shell"></div>', unsafe_allow_html=True)
+title_col, lang_col = st.columns([3, 1], vertical_alignment="center")
 
 with title_col:
-    st.title(f"MoneyPrinterTurbo v{config.project_version}")
+    st.markdown(
+        f"""
+        <div class="editor-topbar">
+            <div>
+                <div class="editor-brand-title">MoneyPrinterTurbo v{config.project_version}</div>
+                <div class="editor-brand-subtitle">Creative editor for automated short video generation</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 with lang_col:
     display_languages = []
@@ -215,6 +331,67 @@ locales = utils.load_locales(i18n_dir)
 def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
+
+
+def plain_ui_text(value):
+    text = str(value).replace("**", "")
+    return text.split("（", 1)[0].split("(", 1)[0].strip()
+
+
+def section_heading(title, caption=""):
+    caption_html = (
+        f'<div class="editor-section-caption">{escape(str(caption))}</div>'
+        if caption
+        else ""
+    )
+    st.markdown(
+        f'<div class="editor-section-title">{escape(plain_ui_text(title))}</div>{caption_html}',
+        unsafe_allow_html=True,
+    )
+
+
+def render_preview_card(params):
+    is_portrait = params.video_aspect == VideoAspect.portrait
+    ratio_label = tr("Portrait") if is_portrait else tr("Landscape")
+    preview_class = "preview-phone" if is_portrait else "preview-landscape"
+    subtitle_label = tr("Enable Subtitles") if params.subtitle_enabled else tr("None")
+    source_label = params.video_source or "-"
+    voice_label = params.voice_name or "-"
+    count_label = str(params.video_count or "-")
+
+    st.markdown(
+        f"""
+        <div class="preview-card">
+          <div class="editor-section-title">{escape(plain_ui_text(tr("Video Preview")))}</div>
+          <div class="{preview_class}">
+            <div class="preview-screen"><div class="preview-caption"></div></div>
+          </div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">{escape(plain_ui_text(tr("Video Ratio")))}</div>
+              <div class="summary-value">{escape(plain_ui_text(ratio_label))}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">{escape(plain_ui_text(tr("Video Source")))}</div>
+              <div class="summary-value">{escape(source_label)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">{escape(plain_ui_text(tr("Speech Synthesis")))}</div>
+              <div class="summary-value">{escape(voice_label)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">{escape(plain_ui_text(tr("Subtitle Settings")))}</div>
+              <div class="summary-value">{escape(plain_ui_text(subtitle_label))}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">{escape(plain_ui_text(tr("Number of Videos Generated Simultaneously")))}</div>
+              <div class="summary-value">{escape(count_label)}</div>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # 创建基础设置折叠框
@@ -540,10 +717,10 @@ if not config.app.get("hide_config", False):
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
 llm_provider = config.app.get("llm_provider", "").lower()
-panel = st.columns(3)
-left_panel = panel[0]
-middle_panel = panel[1]
-right_panel = panel[2]
+editor_columns = st.columns([1.35, 0.85], gap="large")
+left_panel = editor_columns[0]
+middle_panel = editor_columns[1]
+right_panel = editor_columns[1]
 
 params = VideoParams(video_subject="")
 uploaded_files = []
@@ -551,7 +728,11 @@ uploaded_audio_file = None
 
 with left_panel:
     with st.container(border=True):
-        st.write(tr("Video Script Settings"))
+        st.markdown('<span class="editor-main-card"></span>', unsafe_allow_html=True)
+        section_heading(
+            tr("Video Script Settings"),
+            "Write the story first, then tune materials, voice, and subtitles on the right.",
+        )
         params.video_subject = st.text_input(
             tr("Video Subject"),
             key="video_subject",
@@ -647,8 +828,12 @@ with left_panel:
         )
 
 with middle_panel:
-    with st.container(border=True):
-        st.write(tr("Video Settings"))
+    st.markdown('<span class="config-stack"></span>', unsafe_allow_html=True)
+    with st.expander(tr("Video Settings"), expanded=True):
+        section_heading(
+            tr("Video Settings"),
+            "Choose the material source, framing, clip rhythm, and batch count.",
+        )
         video_concat_modes = [
             (tr("Sequential"), "sequential"),
             (tr("Random"), "random"),
@@ -741,8 +926,11 @@ with middle_panel:
             options=[1, 2, 3, 4, 5],
             index=0,
         )
-    with st.container(border=True):
-        st.write(tr("Audio Settings"))
+    with st.expander(tr("Audio Settings"), expanded=False):
+        section_heading(
+            tr("Audio Settings"),
+            "Choose narration, preview voice, custom audio, and background music.",
+        )
 
         # 添加TTS服务器选择下拉框
         tts_servers = [
@@ -1016,8 +1204,11 @@ with middle_panel:
         )
 
 with right_panel:
-    with st.container(border=True):
-        st.write(tr("Subtitle Settings"))
+    with st.expander(tr("Subtitle Settings"), expanded=False):
+        section_heading(
+            tr("Subtitle Settings"),
+            "Control subtitle visibility, placement, font, fill, and stroke.",
+        )
         params.subtitle_enabled = st.checkbox(tr("Enable Subtitles"), value=True)
         font_names = get_all_fonts()
         saved_font_name = config.ui.get("font_name", "MicrosoftYaHeiBold.ttc")
@@ -1084,6 +1275,9 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+
+    render_preview_card(params)
+
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 
@@ -1148,7 +1342,15 @@ with right_panel:
                     config.save_config()
                     st.success(tr("Pixabay API Key deleted successfully"))
 
-start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
+with st.container(border=True):
+    st.markdown('<span class="generate-action-card"></span>', unsafe_allow_html=True)
+    section_heading(
+        tr("Generate Video"),
+        "Run the configured task and show logs, validation messages, and generated videos below.",
+    )
+    start_button = st.button(
+        tr("Generate Video"), use_container_width=True, type="primary"
+    )
 if start_button:
     config.save_config()
     task_id = str(uuid4())
